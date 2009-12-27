@@ -1,5 +1,47 @@
 #!/usr/bin/python
 
+class EquationModel:
+  def __init__(self):
+    self.equations = []
+
+  def addEquation(self, eq):
+    if eq.left == 0:
+      raise ValueError, "Cannot add equation to model: it has to have some left side"
+    else:
+      self.equations.append(eq)
+
+  def __str__(self):
+    return "\n".join(["%s" % x for x in self.equations])
+
+  def pivotBy(self, variable):
+    index = -1
+    cur = None
+    i = 0
+    for eq in self.equations:
+      if variable in eq.right:
+        if cur is None or eq.body[variable] < cur:
+          cur = eq.body[variable]
+          index = i
+      i += 1
+
+    self.equations[index].solveFor(variable)
+    for eq in self.equations:
+      eq.substitute(self.equations[index])
+
+    self.nextpivot = index + 1
+
+  def getNextPivot(self):
+    return self.nextpivot
+
+  def solutionsForNonbasic0(self):
+    solution = {}
+    for eq in self.equations:
+      for r in eq.right:
+        solution[r] = 0
+      solution[eq.left] = eq.constant
+    
+    return solution
+
 class Equation:
   def __init__(self):
     self.left       = 0
@@ -70,17 +112,57 @@ class Equation:
     self.right.remove(label)
     self.body.pop(label)
 
+# game of chicken, preprocessed to nonnegative...
+
 eq1 = Equation()
-eq1.addToEquation(2, "x")
-eq1.addToEquation(-3, "y")
-
 eq2 = Equation()
-eq2.addToEquation(1, "x")
-eq2.addToEquation(1, "y")
-eq2.addConstant(-5)
+eq3 = Equation()
+eq4 = Equation()
 
-print eq1
-print eq2
+index = 1
+for i in (eq1, eq2, eq3, eq4):
+  i.addConstant(1)
+  i.addToEquation(-1, "v%s" % index)
+  i.solveFor("v%s" % index)
+  index += 1
 
-eq2.substituteValue("y", 4)
-print eq2
+eq1.addToEquation(-2, "x3")
+
+eq2.addToEquation(-2, "x4")
+
+eq3.addToEquation(-2, "x2")
+
+eq4.addToEquation(-2, "x1")
+
+eqm = EquationModel()
+for i in (eq1, eq2, eq3, eq4):
+  eqm.addEquation(i)
+
+print eqm
+
+startpivot = 1
+print "Next pivot: %s" % startpivot
+eqm.pivotBy("x%s" % startpivot )
+
+nextpivot = eqm.getNextPivot()
+print "Next pivot: %s" % nextpivot
+eqm.pivotBy("x%s" % nextpivot )
+
+nextpivot = eqm.getNextPivot()
+print "Next pivot: %s" % nextpivot
+eqm.pivotBy("x%s" % nextpivot )
+
+nextpivot = eqm.getNextPivot()
+print "Next pivot: %s" % nextpivot
+eqm.pivotBy("x%s" % nextpivot )
+
+nextpivot = eqm.getNextPivot()
+print "Next pivot: %s" % nextpivot
+
+sol = eqm.solutionsForNonbasic0()
+print sol
+
+print "Prop1: %s" % (sol["x1"] / (sol["x1"] + sol["x2"]))
+print "Prop2: %s" % (sol["x2"] / (sol["x1"] + sol["x2"]))
+print "Prop3: %s" %  (sol["x3"] / (sol["x3"] + sol["x4"]))
+print "Prop4: %s" % (sol["x4"] / (sol["x3"] + sol["x4"]))

@@ -29,7 +29,6 @@ class TwoPlayerGame:
         strat = self.matrix[i][j]
         print "[%s] " % ("%s:%s".center(self.stratADigits + self.stratBDigits + 1) % (strat.payoffA, strat.payoffB)),
       print "\n",
-
   
   def positivize(self):
     slack = 0
