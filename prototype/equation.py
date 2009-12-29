@@ -61,13 +61,13 @@ class Equation:
   def addToEquation(self, coef, label):
     if label == self.left:
       raise ValueError, "Adding to equation's left size is not possible"
-    
+
     if label in self.right:
       self.body[label] += coef
     else:
       self.body[label] =  coef
       self.right.append(label)
-  
+
   def addConstant(self, coef):
     self.constant += coef
 
@@ -126,13 +126,15 @@ for i in (eq1, eq2, eq3, eq4):
   i.solveFor("v%s" % index)
   index += 1
 
-eq1.addToEquation(-2, "x3")
+eq1.addToEquation(-1, "x3")
+eq1.addToEquation(-3, "x4")
 
 eq2.addToEquation(-2, "x4")
 
-eq3.addToEquation(-2, "x2")
+eq3.addToEquation(-1, "x1")
+eq3.addToEquation(-3, "x2")
 
-eq4.addToEquation(-2, "x1")
+eq4.addToEquation(-2, "x2")
 
 eqm = EquationModel()
 for i in (eq1, eq2, eq3, eq4):
@@ -140,24 +142,28 @@ for i in (eq1, eq2, eq3, eq4):
 
 print eqm
 
-startpivot = 1
+startpivot = 4
 print "Next pivot: %s" % startpivot
 eqm.pivotBy("x%s" % startpivot )
+print eqm
 
 nextpivot = eqm.getNextPivot()
 print "Next pivot: %s" % nextpivot
 eqm.pivotBy("x%s" % nextpivot )
+print eqm
 
 nextpivot = eqm.getNextPivot()
 print "Next pivot: %s" % nextpivot
 eqm.pivotBy("x%s" % nextpivot )
+print eqm
 
 nextpivot = eqm.getNextPivot()
 print "Next pivot: %s" % nextpivot
-eqm.pivotBy("x%s" % nextpivot )
+#eqm.pivotBy("x%s" % nextpivot )
 
-nextpivot = eqm.getNextPivot()
-print "Next pivot: %s" % nextpivot
+#nextpivot = eqm.getNextPivot()
+#print "Next pivot: %s" % nextpivot
+
 
 sol = eqm.solutionsForNonbasic0()
 print sol

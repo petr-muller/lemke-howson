@@ -1,10 +1,25 @@
 #!/usr/bin/python
 
+from optparse import OptionParser
+
+DEBUG = False
+ALGO  = True
+
+def debug(message):
+  global DEBUG
+  if DEBUG:
+    print "DEBUG: " + message
+
+def algo(message):
+  global ALGO
+  print "ALGORITMUS: " + message
+
 class PureStrategy:
   """Reprezentuje jednu ryzi strategii, coz je de facto jen jednoducha dvojice"""
   """Ale buhvi co bude potreba aby umela"""
 
   def __init__(self, payoffA, payoffB):
+    debug("Vytvareni strategie [%s,%s]" % (payoffA, payoffB))
     self.payoffA = payoffA
     self.payoffB = payoffB
 
@@ -28,11 +43,13 @@ class TwoPlayerGame:
       self.stratsA = stratsA
       self.stratsB = stratsB
       self.name = name
+      self.slack = 0
+
+      debug("Vytvorena hra %s: %s/%s strategii" % (name, stratsA, stratsB))
 
   def loadMatrices(self, first, second):
     """Z dodanych matic vytvori jednu, jejiz cleny jsou PureStrategy"""
     """Ocekava spravnou velikost matic, jinak haze ValueError"""
-
 
     # pokud nemame spravny pocet radku
     if len(first) != self.stratsA or len(second) != self.stratsA:
@@ -45,6 +62,8 @@ class TwoPlayerGame:
 
     except IndexError:
       raise ValueError, "Matrice do not have proper number of columns"
+
+    debug("Do hry %s byly nahrany matice" % self.name)
 
   def printGame(self):
     """Vypise hru primo pomoci print"""
@@ -71,10 +90,19 @@ class TwoPlayerGame:
 
     # pokud jsme nejakou nasli, tak jeji abs proste pricteme ke vsem payoff
     if slack > 0:
+      self.slack = slack
+      algo("Nejnizsi negativni uzitek je -%s: pricteme ho k cele hre" % slack)
       for i in range(self.stratsA):
         for j in range(self.stratsB):
           self.matrix[i][j].payoffA += slack
           self.matrix[i][j].payoffB += slack
+
+  def unslack(self):
+    """Vrati hru do puvodniho stavu pred prictenim konstanty pro odnegativizaci"""
+    for i in range(self.stratsA):
+      for j in range(self.stratsB):
+        self.matrix[i][j].payoffA -= self.slack
+        self.matrix[i][j].payoffB -= self.slack
 
   def _payoffs(self, player, strategy):
     """Vraci vektor payoffu pro hrace a urcitou strategii"""
@@ -94,7 +122,7 @@ class TwoPlayerGame:
     fir = self._payoffs("A", first)
     sec = self._payoffs("A", second)
 
-    for i in range(self.stratsA):
+    for i in range(self.stratsB):
       # pokud je druhy payoff vyssi nebo stejny, nemuze dominovat, koncime
       if sec[i] >= fir[i]:
         return False
@@ -119,6 +147,7 @@ class TwoPlayerGame:
     """Eliminace dominovanych strategii"""
     """Mely by se eliminovat i strategie dominovane smisenymi strategiemi"""
     """Ale netusim, jak to v rozumnem case provest, takze jen pro ryzi"""
+    """Vraci True, pokud zustala jen jedina strategie = ekvilibrium"""
 
     removed = True
     # pokud jsme v minulem prubehu odstranili strategii, zkusime to znova
@@ -132,6 +161,7 @@ class TwoPlayerGame:
       for i in range(self.stratsA):
         for j in range(self.stratsA):
           if self.AStrategyDominates(i, j):
+            algo("Hrac 1: strategie %s je dominovana strategii %s" % (j, i))
             # kick je dominovana strategie
             kick = j
             break # z prvniho foru
@@ -146,14 +176,12 @@ class TwoPlayerGame:
         removed = True
 
     # totez pro strategie druheho hrace
-    removed = True
-    while removed:
-      removed = False
       kick = None
 
       for i in range(self.stratsB):
         for j in range(self.stratsB):
           if self.BStrategyDominates(i, j):
+            algo("Hrac 2: strategie %s je dominovana strategii %s" % (j, i))
             kick = j
             break
 
@@ -166,13 +194,21 @@ class TwoPlayerGame:
         self.stratsB -= 1
         removed = True
 
+    return self.stratsB == 1 == self.stratsA
+
   def preprocess(self):
     """Udela preprocessing cele hry"""
     """Odstrani negativni payoff"""
     """Eliminuje dominovane strategie"""
+    """Vraci True, pokud zustalo jen ekviibrium"""
 
+    algo("=== Odstraneni negativnich uzitku ===")
     self.positivize()
-    self.eliminate()
+
+    algo("=== Eliminace dominovanych strategii ===")
+    equi = self.eliminate()
+
+    return equi
 
 class GameFactory:
   """Trida pro nacitani a ukladani her do souboru"""
@@ -218,9 +254,33 @@ class GameFactory:
 
     return game
 
+parser = OptionParser()
+parser.add_option("-a", "--algorithm", dest="algo", action="store_true",
+                  help="Vypis postupu algoritmu", default=False)
+parser.add_option("-d", "--debug", dest="debug", action="store_true",
+                  help="Vypis ladicich informace", default=False)
+parser.add_option("-g", "--game", dest="game", metavar="GAMEFILE",
+                  help="Soubor s definici hry",)
+
+(options, args) = parser.parse_args()
+
+DEBUG = options.debug
+ALGO  = options.algo
+
 gf = GameFactory()
-fp = open("sample.game", "r")
+debug("Otevirani souboru %s" % options.game)
+
+fp = open(options.game, "r")\
+
+debug("Nahravani hry ze souboru")
 game = gf.loadGameFrom(fp)
 fp.close()
-
 game.printGame()
+print "========================================\n"
+
+if game.preprocess():
+  print "Po predzpracovani zbyl jen jeden profil => ekvilibrium v ryzich strategiich:"
+  game.unslack()
+  game.printGame()
+else:
+  game.printGame()
