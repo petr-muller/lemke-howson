@@ -1,9 +1,11 @@
 #!/usr/bin/python
 
 from optparse import OptionParser
+import sys
+import equation
 
 DEBUG = False
-ALGO  = True
+ALGO  = False
 
 def debug(message):
   global DEBUG
@@ -12,7 +14,8 @@ def debug(message):
 
 def algo(message):
   global ALGO
-  print "ALGORITMUS: " + message
+  if ALGO:
+    print "ALGORITMUS: " + message
 
 class PureStrategy:
   """Reprezentuje jednu ryzi strategii, coz je de facto jen jednoducha dvojice"""
@@ -210,6 +213,58 @@ class TwoPlayerGame:
 
     return equi
 
+  def asEquationModel(self):
+    """Vrati hru jako pocatecni soustavu rovnic"""
+
+    eqm = equation.EquationModel()
+    fstart = 1
+    fend   = self.stratsA+1
+
+    sstart = fend
+    send   = fend+self.stratsB
+
+    for i in range(fstart, fend):
+      debug("Pridavam rovnici pro strategii %s prvniho hrace" % i)
+      eq = equation.Equation()
+      base = "v%s" % i
+
+      eq.addConstant(1)
+      eq.addToEquation(-1, base)
+      eq.solveFor(base)
+
+      index = fend
+      for strategy in self.matrix[i-1]:
+        xind = "x%s" % index
+        if strategy.payoffA != 0:
+          eq.addToEquation(-1 * strategy.payoffA, xind)
+        index += 1
+
+      debug(str(eq))
+
+      eqm.addEquation(eq)
+
+    for i in range(sstart, send):
+      debug("Pridavam rovnici pro strategii %s druheho hrace" % i)
+      eq = equation.Equation()
+      base = "v%s" % i
+
+      eq.addConstant(1)
+      eq.addToEquation(-1, base)
+      eq.solveFor(base)
+
+      index = 1
+      for strategy in [ self.matrix[d][i-1-self.stratsB] for d in range(self.stratsA)]:
+        xind = "x%s" % index
+        if strategy.payoffB != 0:
+          eq.addToEquation(-1 * strategy.payoffB, xind)
+        index += 1
+
+      debug(str(eq))
+
+      eqm.addEquation(eq)
+
+    return eqm
+
 class GameFactory:
   """Trida pro nacitani a ukladani her do souboru"""
   """resp. odkudkoliv, co umi readline a writeline"""
@@ -264,8 +319,13 @@ parser.add_option("-g", "--game", dest="game", metavar="GAMEFILE",
 
 (options, args) = parser.parse_args()
 
+if options.game is None:
+  print "Chyba: je treba zadat jmeno souboru se hrou"
+  sys.exit(1)
+
 DEBUG = options.debug
 ALGO  = options.algo
+
 
 gf = GameFactory()
 debug("Otevirani souboru %s" % options.game)
@@ -283,4 +343,74 @@ if game.preprocess():
   game.unslack()
   game.printGame()
 else:
-  game.printGame()
+  eqModel = game.asEquationModel()
+
+  #############################################################################
+  #############################################################################
+  #                 tady zacina samotny algoritmus !!!                        #
+  #############################################################################
+  #############################################################################
+
+  # zacneme prvni strategii prvniho hrace: x1
+  if ALGO:
+    print "=============================================\n"
+    print "Pocatecni soustava"
+    print eqModel
+
+  initial_pivot = 1
+  algo("Pocatecni pivot: %s" % initial_pivot)
+
+  pivot_variable = "x%s" % initial_pivot
+  eqModel.pivotBy(pivot_variable)
+  nextpivot = eqModel.getNextPivot()
+
+  # ted dokud nedosahnem puvodniho pivotu, tak resime rovnici
+
+  while nextpivot != initial_pivot:
+    algo("Promenna v%s byla odstranena z baze, dalsi pivot je %s" % (nextpivot, nextpivot))
+    pivot_variable = "x%s" % nextpivot
+    eqModel.pivotBy(pivot_variable)
+    nextpivot = eqModel.getNextPivot()
+
+  algo("Pivot je stejny jako pocatecni, konec smycky")
+  if ALGO:
+    print "=============================================\n"
+    print "Vysledna soustava"
+    print eqModel
+
+  # kdyz se vratime na puvodni pivot
+  # polozime vsechny promenne na prave strane rovnic = 0
+  # a vyresime
+
+  sol = eqModel.solutionsForNonbasic0()
+
+  if ALGO:
+    print "=============================================\n"
+    print "Hodnoty vsech promennych po polozeni x=0 pro vsechy promenne na prave strane"
+    print sol
+
+  # ted uz se jen vytvori, neco co se da vypsat
+  # pravdepodobnost kazde strategie x je x/sum(xi) for i in strategie hrace
+  # takze si delam listy, pocitam si tu sumu a nakonec cely list vydelim
+
+  fplayer = []
+  fsum    = 0
+  for strategy in range(game.stratsA):
+    variable = "x%s" % (strategy+1)
+    fplayer.append(sol[variable])
+    fsum += sol[variable]
+
+  feq = tuple([ x / float(fsum) for x in fplayer ])
+
+  splayer = []
+  ssum    = 0
+  for strategy in range(game.stratsA, game.stratsB+game.stratsA):
+    variable = "x%s" % (strategy+1)
+    splayer.append(sol[variable])
+    ssum += sol[variable]
+
+  seq = tuple([ x / float(ssum) for x in splayer ])
+
+  # uz jen vypsat nalezene ekvilibrium
+  print "Ekvilibrium hrace 1: %s" % str(feq)
+  print "Ekvilibrium hrace 2: %s" % str(seq)
